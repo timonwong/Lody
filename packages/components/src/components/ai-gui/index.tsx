@@ -80,6 +80,7 @@ export interface SessionChatStreamProps {
   assistantActions?: AssistantMessageAction[];
   assistantActionsMessageId?: string | null;
   onCopyContext?: (messageId: string) => void;
+  onAddSelectedTextToChat?: (text: string) => void;
   onForkLastAssistant?: (turnId: string, destination?: SessionForkDestination) => void;
   forkWorktreeAvailability?: SessionForkWorktreeAvailability;
   onForkWorktreeMenuOpen?: () => void;
@@ -169,6 +170,7 @@ const SessionChatStreamImpl = forwardRef<SessionChatStreamHandle, SessionChatStr
       assistantActionsMessageId,
       onForkLastAssistant,
       onCopyContext,
+      onAddSelectedTextToChat,
       forkWorktreeAvailability,
       onForkWorktreeMenuOpen,
       forkingAssistantMessageId,
@@ -208,6 +210,9 @@ const SessionChatStreamImpl = forwardRef<SessionChatStreamHandle, SessionChatStr
     });
     const stableOnCopyContext = useStableCallback((messageId: string) =>
       onCopyContext?.(messageId)
+    );
+    const stableOnAddSelectedTextToChat = useStableCallback((text: string) =>
+      onAddSelectedTextToChat?.(text)
     );
     const stableOnForkLastAssistant = useStableCallback(
       (turnId: string, destination?: SessionForkDestination) => {
@@ -281,6 +286,9 @@ const SessionChatStreamImpl = forwardRef<SessionChatStreamHandle, SessionChatStr
         assistantActions={assistantActions}
         assistantActionsMessageId={assistantActionsMessageId}
         onCopyContext={onCopyContext ? stableOnCopyContext : undefined}
+        onAddSelectedTextToChat={
+          onAddSelectedTextToChat ? stableOnAddSelectedTextToChat : undefined
+        }
         onForkLastAssistant={hasForkLastAssistant ? stableOnForkLastAssistant : undefined}
         forkWorktreeAvailability={forkWorktreeAvailability}
         onForkWorktreeMenuOpen={onForkWorktreeMenuOpen}

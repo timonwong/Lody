@@ -571,6 +571,67 @@ describe('SessionChatInputArea submission feedback', () => {
     expect(textarea.value).toBe('focus regression draft');
   });
 
+  it('appends selected text without replacing the current draft', async () => {
+    const composerRef = createRef<SessionChatInputAreaHandle>();
+    const textarea = await renderComposer({
+      composerRef,
+      onSendMessage: async () => true,
+    });
+    await act(async () => {
+      composerRef.current!.appendInputText('selected conversation excerpt');
+    });
+    expect(textarea.value).toBe('focus regression draft\n\nselected conversation excerpt');
+  });
+
+  it('keeps selected text in a removable chip and flattens it on send', async () => {
+    const composerRef = createRef<SessionChatInputAreaHandle>();
+    const submitted: SessionInputBlock[][] = [];
+    await renderComposer({
+      composerRef,
+      onSendMessage: async (blocks) => {
+        submitted.push(blocks);
+        return true;
+      },
+    });
+
+    await act(async () => {
+      composerRef.current!.addConversationTextReference('selected conversation excerpt');
+    });
+
+    expect(container!.querySelector('[data-conversation-text-ref]')).not.toBeNull();
+    await submit('button');
+
+    expect(submitted).toEqual([
+      [
+        {
+          type: 'text',
+          text: 'focus regression draft\n\nselected conversation excerpt',
+        },
+      ],
+    ]);
+    expect(container!.querySelector('[data-conversation-text-ref]')).toBeNull();
+  });
+
+  it('removes selected text without changing the typed draft', async () => {
+    const composerRef = createRef<SessionChatInputAreaHandle>();
+    const textarea = await renderComposer({
+      composerRef,
+      onSendMessage: async () => true,
+    });
+
+    await act(async () => {
+      composerRef.current!.addConversationTextReference('selected conversation excerpt');
+    });
+    await act(async () => {
+      container!
+        .querySelector<HTMLButtonElement>('button[aria-label="Remove selected text"]')
+        ?.click();
+    });
+
+    expect(container!.querySelector('[data-conversation-text-ref]')).toBeNull();
+    expect(textarea.value).toBe('focus regression draft');
+  });
+
   it('does not focus an archived composer or replay focus after restoring it', async () => {
     const acceptance = deferredBoolean();
     const props = {

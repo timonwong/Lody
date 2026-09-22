@@ -111,6 +111,7 @@ it('retains the complete interval after pointerup and holds prose until selectio
     document.dispatchEvent(new Event('pointerup'));
   });
   expect(state.keepMounted).toEqual([1, 2, 3]);
+  expect(state.selection?.text).toBe('a original proseb original prosec original prose');
   await act(async () => root.render(<Probe rows={rows} text="updated prose" />));
   expect(document.getSelection()!.toString()).toBe(
     'a original proseb original prosec original prose'
@@ -121,6 +122,7 @@ it('retains the complete interval after pointerup and holds prose until selectio
     document.dispatchEvent(new Event('selectionchange'));
   });
   expect(state.keepMounted).toEqual([]);
+  expect(state.selection).toBeNull();
   expect(state.activeRef.current).toBe(false);
   expect(viewport.textContent).toContain('updated prose');
 });

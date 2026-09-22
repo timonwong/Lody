@@ -20,6 +20,10 @@ import type { AcpCommandSummary } from '@lody/shared';
 import { AttachmentAddMenu, type AttachmentAddMenuMcp } from './attachment-add-menu';
 import { CommentReferenceChip, type CommentReferenceChipItem } from './comment-reference-chip';
 import {
+  ConversationTextReferenceChip,
+  type ConversationTextReferenceChipItem,
+} from './conversation-text-reference-chip';
+import {
   VisualAnnotationReferenceChip,
   type VisualAnnotationReferenceChipItem,
 } from './visual-annotation-reference-chip';
@@ -173,6 +177,10 @@ export interface ChatComposerProps {
   visualAnnotationReferenceItems?: VisualAnnotationReferenceChipItem[];
   /** Remove a visual annotation reference by localId */
   onVisualAnnotationReferenceRemove?: (localId: string) => void;
+  /** Selected conversation excerpts attached to this message. */
+  conversationTextReferenceItems?: ConversationTextReferenceChipItem[];
+  /** Remove a selected conversation excerpt by localId. */
+  onConversationTextReferenceRemove?: (localId: string) => void;
   /** @deprecated Use footerSelector instead */
   selector?: ReactNode;
   /** Selector node displayed above the textarea (e.g., repo, agent) */
@@ -282,6 +290,8 @@ export function ChatComposer({
   revealCommentReferenceRemoveOnClick = false,
   visualAnnotationReferenceItems = [],
   onVisualAnnotationReferenceRemove,
+  conversationTextReferenceItems = [],
+  onConversationTextReferenceRemove,
   selector,
   topSelector,
   footerSelector,
@@ -674,7 +684,8 @@ export function ChatComposer({
     imageItems.length > 0 ||
     fileItems.length > 0 ||
     commentReferenceItems.length > 0 ||
-    visualAnnotationReferenceItems.length > 0;
+    visualAnnotationReferenceItems.length > 0 ||
+    conversationTextReferenceItems.length > 0;
   const focusHintBinding = commands.getKeybindingsFor('session.focusInput')[0];
   // Only when the box is idle: desktop, has a focus binding, and nothing entered/attached
   // yet (so the chip never collides with text or thumbnails). focus-within hides it too.
@@ -741,7 +752,7 @@ export function ChatComposer({
                       if (
                         !event.currentTarget.contains(target) ||
                         target.closest(
-                          'button, a, input, textarea, select, [role="button"], [role="menuitem"], [role="option"], [data-comment-ref], [data-visual-annotation-ref]'
+                          'button, a, input, textarea, select, [role="button"], [role="menuitem"], [role="option"], [data-comment-ref], [data-conversation-text-ref], [data-visual-annotation-ref]'
                         )
                       ) {
                         return;
@@ -755,6 +766,18 @@ export function ChatComposer({
                   : undefined
               }
             >
+              {conversationTextReferenceItems.length > 0 ? (
+                <div className="flex flex-wrap gap-2 pb-1">
+                  {conversationTextReferenceItems.map((item) => (
+                    <ConversationTextReferenceChip
+                      key={item.localId}
+                      item={item}
+                      onRemove={onConversationTextReferenceRemove}
+                      revealRemoveOnClick={revealCommentReferenceRemoveOnClick}
+                    />
+                  ))}
+                </div>
+              ) : null}
               {commentReferenceItems.length > 0 ? (
                 <div className="flex flex-wrap gap-2 pb-1">
                   {commentReferenceItems.map((item) => (

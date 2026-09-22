@@ -4321,6 +4321,11 @@ export const SessionChatInterface = memo(
     const handleChildEmptyStateSuggest = useCallback((text: string) => {
       inputAreaRef.current?.setInputText(text);
     }, []);
+    const handleAddSelectedTextToChat = useCallback((text: string) => {
+      if (inputAreaRef.current?.addConversationTextReference(text)) {
+        inputAreaRef.current.focusInput();
+      }
+    }, []);
     const chatStreamEmptyState = useMemo(
       () =>
         isChildSession ? (
@@ -6038,6 +6043,7 @@ export const SessionChatInterface = memo(
                               onCopyContext={(messageId) => {
                                 void handleCopyConversationHistory(messageId);
                               }}
+                              onAddSelectedTextToChat={handleAddSelectedTextToChat}
                               onForkLastAssistant={onForkLastAssistant}
                               forkWorktreeAvailability={forkWorktreeAvailability}
                               onForkWorktreeMenuOpen={onForkWorktreeMenuOpen}

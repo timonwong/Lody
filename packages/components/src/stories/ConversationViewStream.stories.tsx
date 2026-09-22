@@ -11,6 +11,10 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Meta, StoryObj } from '@storybook/react';
 import type { SessionHistory, SessionId, WorkspaceId } from '@lody/shared';
 import { LoroDoc } from 'loro-crdt';
+import {
+  ConversationTextReferenceChip,
+  type ConversationTextReferenceChipItem,
+} from '@/components/chat/conversation-text-reference-chip';
 import { MessageRowView, SessionChatStreamView } from '@/components/ai-gui/view';
 import type { SessionChatStreamViewProps } from '@/components/ai-gui/view';
 import type { SessionChatStreamHandle } from '@/components/ai-gui/view';
@@ -494,6 +498,11 @@ const selectionHistory = Array.from({ length: 120 }, (_, index) => ({
 
 function NativeTextSelectionStory() {
   const [session, setSession] = useState<ReturnType<typeof createConversationSession> | null>(null);
+  const [draft, setDraft] = useState('');
+  const [selectedTextReferences, setSelectedTextReferences] = useState<
+    ConversationTextReferenceChipItem[]
+  >([]);
+  const nextReferenceId = useRef(0);
   const streamRef = useRef<SessionChatStreamHandle>(null);
   useEffect(() => {
     const doc = new LoroDoc();
@@ -551,7 +560,31 @@ function NativeTextSelectionStory() {
         >
           Finish first turn
         </button>
-        <textarea data-testid="selection-paste" aria-label="Paste copied text" className="border" />
+        <div className="flex min-w-96 max-w-xl flex-col gap-2">
+          {selectedTextReferences.length > 0 ? (
+            <div className="flex flex-wrap gap-2">
+              {selectedTextReferences.map((item) => (
+                <ConversationTextReferenceChip
+                  key={item.localId}
+                  item={item}
+                  onRemove={(localId) =>
+                    setSelectedTextReferences((current) =>
+                      current.filter((reference) => reference.localId !== localId)
+                    )
+                  }
+                />
+              ))}
+            </div>
+          ) : null}
+          <textarea
+            data-testid="selection-add-draft"
+            aria-label="Add to chat draft"
+            className="min-w-96 border p-1"
+            value={draft}
+            onChange={(event) => setDraft(event.target.value)}
+            placeholder="Select conversation text, then use Add to chat"
+          />
+        </div>
       </div>
       <div className="min-h-0 flex-1" data-testid="native-selection-story">
         <SessionChatStreamView
@@ -566,6 +599,13 @@ function NativeTextSelectionStory() {
           onOutlinePreviewRound={stream.onOutlinePreviewRound}
           leadingContent={<div>Selection regression fixture</div>}
           renderMessageRow={renderMessageRow}
+          onAddSelectedTextToChat={(text) => {
+            nextReferenceId.current += 1;
+            setSelectedTextReferences((current) => [
+              ...current,
+              { localId: `selection-${nextReferenceId.current}`, text },
+            ]);
+          }}
           className="h-full"
         />
       </div>

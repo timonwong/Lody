@@ -30,6 +30,11 @@ export type SelectableConversationRow = {
   ready: boolean;
 };
 
+export type ConversationTextSelection = {
+  text: string;
+  rect: Pick<DOMRect, 'top' | 'left' | 'width' | 'height' | 'bottom'>;
+};
+
 type RetainedTurn<T> = { snapshot: T; lease?: ConversationRange; failed?: boolean };
 
 /** Owns native text selection, independently of the image-sharing checkbox selection. */
@@ -59,6 +64,7 @@ export function useConversationTextSelection<T>({
   activeRef: MutableRefObject<boolean>;
 }) {
   const [version, setVersion] = useState(0);
+  const [selection, setSelection] = useState<ConversationTextSelection | null>(null);
   const retained = useRef(new Map<string, RetainedTurn<T>>());
   const current = useLatestRef({
     view,
@@ -79,8 +85,34 @@ export function useConversationTextSelection<T>({
     let pointerDown = false;
     let generation = 0;
 
+    const selectionRange = (): Range | null => {
+      const selection = doc.getSelection();
+      if (!selection || selection.isCollapsed || !selection.rangeCount) return null;
+      const range = selection.getRangeAt(0);
+      return range.intersectsNode(viewport) ? range : null;
+    };
+    const readSelection = (): ConversationTextSelection | null => {
+      const range = selectionRange();
+      const text = range?.toString() ?? '';
+      if (!range || !text.trim()) return null;
+      const rect =
+        typeof range.getBoundingClientRect === 'function'
+          ? range.getBoundingClientRect()
+          : { top: 0, left: 0, width: 0, height: 0, bottom: 0 };
+      return {
+        text,
+        rect: {
+          top: rect.top,
+          left: rect.left,
+          width: rect.width,
+          height: rect.height,
+          bottom: rect.bottom,
+        },
+      };
+    };
     const publish = () => {
       if (!disposed) {
+        setSelection(readSelection());
         setVersion((value) => value + 1);
         current.current.onChange();
       }
@@ -89,16 +121,11 @@ export function useConversationTextSelection<T>({
       generation++;
       const old = retained.current;
       retained.current = new Map();
+      setSelection(null);
       current.current.onRelease();
       activeRef.current = false;
       for (const turn of old.values()) turn.lease?.release();
       if (old.size) publish();
-    };
-    const selectionRange = (): Range | null => {
-      const selection = doc.getSelection();
-      if (!selection || selection.isCollapsed || !selection.rangeCount) return null;
-      const range = selection.getRangeAt(0);
-      return range.intersectsNode(viewport) ? range : null;
     };
     const rowIndex = (node: Node | null) => {
       const element = node instanceof Element ? node : node?.parentElement;
@@ -186,8 +213,10 @@ export function useConversationTextSelection<T>({
     };
     const syncSelection = () => {
       const range = selectionRange();
-      if (range) retainSelection(range);
-      else if (!pointerDown) release();
+      if (range) {
+        retainSelection(range);
+        publish();
+      } else if (!pointerDown) release();
     };
     const onSelectionChange = () => flushSync(syncSelection);
     const onPointerDown = (event: PointerEvent) => {
@@ -231,6 +260,7 @@ export function useConversationTextSelection<T>({
         flushSync(() => {
           retainSelection(range);
           retainFrontier();
+          publish();
         });
       } else if (!pointerDown) {
         flushSync(release);
@@ -320,5 +350,5 @@ export function useConversationTextSelection<T>({
     retained.current.has(row.turnId) ? [index + leadingRowCount] : []
   );
   const holds = new Map([...retained.current].map(([id, turn]) => [id, turn.snapshot]));
-  return { activeRef, keepMounted, holds, version };
+  return { activeRef, keepMounted, holds, selection, version };
 }

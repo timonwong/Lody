@@ -35,6 +35,7 @@ import {
   useSelectionStableValue,
   useConversationTextSelection,
   type SelectableConversationRow,
+  type ConversationTextSelection,
 } from '@/hooks/use-conversation-text-selection';
 import type { ConversationView } from '@/lib/conversation-view';
 import {
@@ -123,6 +124,7 @@ import {
   ListChecks,
   Loader2,
   MoveRight,
+  MessageSquarePlus,
   PencilLine,
   Search,
   Sparkles,
@@ -517,6 +519,7 @@ export interface SessionChatStreamViewProps {
   assistantActions?: AssistantMessageAction[];
   assistantActionsMessageId?: string | null;
   onCopyContext?: (messageId: string) => void;
+  onAddSelectedTextToChat?: (text: string) => void;
   onForkLastAssistant?: (turnId: string, destination?: SessionForkDestination) => void;
   forkWorktreeAvailability?: SessionForkWorktreeAvailability;
   onForkWorktreeMenuOpen?: () => void;
@@ -535,6 +538,45 @@ export interface SessionChatStreamViewProps {
    * (e.g. during search result navigation).
    */
   suppressStickyAutoScrollRef?: React.RefObject<boolean>;
+}
+
+function ConversationSelectionToolbar({
+  selection,
+  label,
+  onAdd,
+}: {
+  selection: ConversationTextSelection;
+  label: string;
+  onAdd: (text: string) => void;
+}) {
+  const above = selection.rect.top >= 56;
+  return (
+    <div
+      className="pointer-events-auto fixed z-50 -translate-x-1/2 rounded-md border bg-popover p-1 text-popover-foreground shadow-md"
+      style={{
+        left: selection.rect.left + selection.rect.width / 2,
+        top: above ? selection.rect.top - 8 : selection.rect.bottom + 8,
+        transform: above ? 'translate(-50%, -100%)' : 'translateX(-50%)',
+      }}
+      onPointerDown={(event) => event.preventDefault()}
+    >
+      <Button
+        type="button"
+        size="sm"
+        variant="ghost"
+        className="gap-2 whitespace-nowrap"
+        aria-label={label}
+        onClick={() => {
+          onAdd(selection.text);
+          document.getSelection()?.removeAllRanges();
+          document.dispatchEvent(new Event('selectionchange'));
+        }}
+      >
+        <MessageSquarePlus className="h-4 w-4" />
+        {label}
+      </Button>
+    </div>
+  );
 }
 
 /* Exported so the turn footer can be driven through its real gate in tests: an
@@ -1361,6 +1403,7 @@ export const SessionChatStreamView = forwardRef<
       assistantActionsMessageId = null,
       onForkLastAssistant,
       onCopyContext,
+      onAddSelectedTextToChat,
       forkWorktreeAvailability = 'hidden',
       onForkWorktreeMenuOpen,
       forkingAssistantMessageId,
@@ -1650,6 +1693,7 @@ export const SessionChatStreamView = forwardRef<
       }),
       [selectableRows, leadingRowCount, nativeTextSelection.holds]
     );
+    const selectedText = nativeTextSelection.selection;
 
     // ---- Outline rail ------------------------------------------------------
     // The left table of contents. Everything here is derived from `items` and
@@ -2144,6 +2188,13 @@ export const SessionChatStreamView = forwardRef<
               </NativeSelectionRowsContext.Provider>
               <MessageSelectionOverlay />
             </div>
+            {selectedText && onAddSelectedTextToChat ? (
+              <ConversationSelectionToolbar
+                selection={selectedText}
+                label={t('sessions.addSelectedTextToChat', 'Add to chat')}
+                onAdd={onAddSelectedTextToChat}
+              />
+            ) : null}
             {/* Top fade into the bg-background canvas above (desktop only),
                 hinting that the conversation continues past the top edge. */}
             {!isMobile && isScrolledFromTop ? (

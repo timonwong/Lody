@@ -77,6 +77,7 @@ import type {
 } from '@lody/shared';
 import type { CommentReferenceChipItem } from '@/components/chat/comment-reference-chip';
 import type { VisualAnnotationReferenceChipItem } from '@/components/chat/visual-annotation-reference-chip';
+import type { ConversationTextReferenceChipItem } from '@/components/chat/conversation-text-reference-chip';
 import {
   addCommentReferenceItem,
   toggleCommentReferenceItem,
@@ -492,6 +493,8 @@ export type SessionSendMessageOptions = {
 
 export type SessionChatInputAreaHandle = {
   setInputText: (text: string) => void;
+  appendInputText: (text: string) => void;
+  addConversationTextReference: (text: string) => boolean;
   focusInput: () => void;
   addCommentReference: (reference: CommentReferencePayload) => boolean;
   toggleCommentReference: (reference: CommentReferencePayload) => boolean;
@@ -635,6 +638,11 @@ export const SessionChatInputArea = memo(
     >([]);
     const visualAnnotationReferencesRef = useRef<VisualAnnotationReferenceChipItem[]>([]);
     const visualAnnotationRefIdCounter = useRef(0);
+    const [conversationTextReferences, setConversationTextReferences] = useState<
+      ConversationTextReferenceChipItem[]
+    >([]);
+    const conversationTextReferencesRef = useRef<ConversationTextReferenceChipItem[]>([]);
+    const conversationTextReferenceIdCounter = useRef(0);
 
     const publishCommentReferences = useCallback(
       (items: CommentReferenceChipItem[]) => {
@@ -662,6 +670,41 @@ export const SessionChatInputArea = memo(
     const createVisualAnnotationReferenceLocalId = useCallback(
       () => `vref-${++visualAnnotationRefIdCounter.current}`,
       []
+    );
+
+    const publishConversationTextReferences = useCallback(
+      (items: ConversationTextReferenceChipItem[]) => {
+        conversationTextReferencesRef.current = items;
+        setConversationTextReferences(items);
+      },
+      []
+    );
+
+    const addConversationTextReference = useCallback(
+      (text: string) => {
+        const normalizedText = text.trim();
+        if (isArchived || !normalizedText) {
+          return false;
+        }
+        publishConversationTextReferences([
+          ...conversationTextReferencesRef.current,
+          {
+            localId: `text-ref-${++conversationTextReferenceIdCounter.current}`,
+            text: normalizedText,
+          },
+        ]);
+        return true;
+      },
+      [isArchived, publishConversationTextReferences]
+    );
+
+    const removeConversationTextReference = useCallback(
+      (localId: string) => {
+        publishConversationTextReferences(
+          conversationTextReferencesRef.current.filter((item) => item.localId !== localId)
+        );
+      },
+      [publishConversationTextReferences]
     );
 
     const addCommentReference = useCallback(
@@ -857,6 +900,8 @@ export const SessionChatInputArea = memo(
       setCommentReferences([]);
       visualAnnotationReferencesRef.current = [];
       setVisualAnnotationReferences([]);
+      conversationTextReferencesRef.current = [];
+      setConversationTextReferences([]);
     }
 
     useEffect(() => {
@@ -969,6 +1014,16 @@ export const SessionChatInputArea = memo(
         updatePastedTextDraftsForSession(session.id, () => []);
       },
       [isArchived, session.id, setUserInput, updatePastedTextDraftsForSession]
+    );
+    const appendInputText = useCallback(
+      (value: string) => {
+        if (isArchived || !value) {
+          return;
+        }
+        setUserInput(userInput ? `${userInput}\n\n${value}` : value);
+        updatePastedTextDraftsForSession(session.id, () => []);
+      },
+      [isArchived, session.id, setUserInput, updatePastedTextDraftsForSession, userInput]
     );
 
     const updatePendingImage = useCallback(
@@ -1778,6 +1833,8 @@ export const SessionChatInputArea = memo(
       ref,
       () => ({
         setInputText,
+        appendInputText,
+        addConversationTextReference,
         focusInput: () => {
           textareaRef.current?.focus();
         },
@@ -1798,6 +1855,8 @@ export const SessionChatInputArea = memo(
       }),
       [
         setInputText,
+        appendInputText,
+        addConversationTextReference,
         addCommentReference,
         toggleCommentReference,
         addVisualAnnotationReference,
@@ -1890,11 +1949,17 @@ export const SessionChatInputArea = memo(
           trimmedPrompt,
           expandedPrompt.spans
         );
-        const textBlocks: SessionInputBlock[] = trimmedPrompt
+        const selectedConversationText = conversationTextReferencesRef.current
+          .map((item) => item.text)
+          .join('\n\n');
+        const submittedText = [trimmedPrompt, selectedConversationText]
+          .filter(Boolean)
+          .join('\n\n');
+        const textBlocks: SessionInputBlock[] = submittedText
           ? [
               {
                 type: 'text',
-                text: trimmedPrompt,
+                text: submittedText,
                 ...(trimmedSpans ? { spans: trimmedSpans } : {}),
               },
             ]
@@ -1944,7 +2009,8 @@ export const SessionChatInputArea = memo(
           uploadedImages.length === 0 &&
           uploadedFiles.length === 0 &&
           commentRefBlocks.length === 0 &&
-          visualAnnotationRefBlocks.length === 0
+          visualAnnotationRefBlocks.length === 0 &&
+          conversationTextReferencesRef.current.length === 0
         ) {
           capturePostHogEvent(postHog, 'session/input_blocked', {
             reason: 'empty_input',
@@ -1986,6 +2052,7 @@ export const SessionChatInputArea = memo(
               updatePastedTextDraftsForSession(session.id, () => []);
               publishCommentReferences([]);
               publishVisualAnnotationReferences([]);
+              publishConversationTextReferences([]);
             } else if (
               sessionDraftsCache.get(session.id) === submittedDraft.text &&
               sessionImageDraftsCache.get(session.id) === submittedDraft.images &&
@@ -2022,6 +2089,7 @@ export const SessionChatInputArea = memo(
         pastedTextDrafts,
         publishCommentReferences,
         publishVisualAnnotationReferences,
+        publishConversationTextReferences,
         postHog,
         session.id,
         sessionProjectKind,
@@ -2581,6 +2649,10 @@ export const SessionChatInputArea = memo(
         visualAnnotationReferenceItems={submissionPending ? [] : visualAnnotationReferences}
         onVisualAnnotationReferenceRemove={
           submissionPending || isArchived ? undefined : removeVisualAnnotationReference
+        }
+        conversationTextReferenceItems={submissionPending ? [] : conversationTextReferences}
+        onConversationTextReferenceRemove={
+          submissionPending || isArchived ? undefined : removeConversationTextReference
         }
         pastedTextDrafts={submissionPending ? [] : pastedTextDrafts}
         onPastedTextDraftsChange={submissionPending ? undefined : handlePastedTextDraftsChange}
